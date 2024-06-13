@@ -11,7 +11,7 @@ contract CounterTest is Test {
     address private app = vm.addr(uint256(keccak256("APP")));
 
     function setUp() public {
-        sipp = new SippProvenance(admin,app);
+        sipp = new SippProvenance(admin, app);
     }
 
     function test_Increment() public {
