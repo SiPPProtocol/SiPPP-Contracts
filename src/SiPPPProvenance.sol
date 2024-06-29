@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
 // Open Zeppelin
@@ -43,26 +44,23 @@ contract SiPPPProvenance is AccessControl {
 
     struct PhotoProvenance {
         uint256 deviceId;
-        bytes32 photoHash;
-        string location;
         uint256 timestamp;
+        string location;
         string seedPhrase;
         string seedAlgorithm;
         address user;
+        bytes32 photoHash;
         bool algoConfirmed;
     }
 
     struct UserAccount {
-        uint256[] deviceIds;
-        mapping(uint256 => UserDevice) userDevices;
-        bytes32[] photoHashes;
-        mapping(bytes32 => PhotoProvenance) photos;
-        address primaryAccount;
-        address privy; // privy should just be an address, no?
-        string name;
-        string email;
         uint256 farcasterId;
         uint256 creationDate;
+        uint256[] deviceIds;
+        address primaryAccount;
+        address wallet;
+        string name;
+        string email;
     }
 
     bytes32 public constant APP_ROLE = keccak256("APP_ROLE");
@@ -74,17 +72,9 @@ contract SiPPPProvenance is AccessControl {
     /// @dev The goal of these structures is to capture user, photo, and app actions
     ///       such that they can be verified by any user.
     /// @notice The user account is the primary structure that holds all the data
-    mapping(address => UserAccount) private registeredUsers;
-
-    /// @dev The photoProvenance and appProvenance mappings are used to store the
-    ///       provenance of photos taken by the SiPPP app and the app itself.
-    /// @notice These mappings are used to store the provenance of photos and the app
-    mapping(address => PhotoProvenance) public photoProvenance;
-
-    /// @dev The appProvenance mapping is used to store the provenance of the app
-    ///       that is used to take the photos.
-    /// @notice This is a mapping of the app address to the photoProvenance struct
-    mapping(address => PhotoProvenance) public appProvenance; // App Provenance
+    mapping(address => UserAccount) public registeredUsers;
+    mapping(address => mapping(uint256 => UserDevice)) public userDevices;
+    mapping(address => mapping(bytes32 => PhotoProvenance)) public userPhotos;
 
     /// @notice Only admin modifer to restrict access to certain functions
     modifier onlyAdmin() {
@@ -92,104 +82,118 @@ contract SiPPPProvenance is AccessControl {
         _;
     }
 
+    /// @notice Only app modifer to restrict access to certain functions
     modifier onlyApp() {
         require(hasRole(APP_ROLE, msg.sender), "Restricted to admins.");
         _;
     }
 
+    /// @notice Constructor to set the admin and app addresses
+    /// @param _admin The address of the admin
+    /// @param _app The address of the app
     constructor(address _admin, address _app) {
-        grantAppRole(_admin);
-        grantAppRole(_app);
-
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        grantAppRole(_app);
+        grantAppRole(_admin);
 
         admin = _admin;
         app = _app;
     }
 
-    // enables the admin to grant a new address special permissions
+    /// @notice Enables the admin to grant a new address special permissions
+    /// @param newApp The address of the new app
     function grantAppRole(address newApp) public onlyAdmin {
         _grantRole(APP_ROLE, newApp);
     }
 
-    // enables the admin to grant a new address special permissions
+    /// @notice Enables the admin to revoke a new address special permissions
+    /// @param badApp The address of the new app
     function revokeAppRole(address badApp) public onlyAdmin {
         _grantRole(APP_BANNED, badApp);
     }
 
-    function registerUser(
-        address _privy,
-        uint256 _farcasterId,
-        address _primaryAccount,
-        string memory _name,
-        string memory _email
-    ) public onlyApp {
-        if (registeredUsers[_privy].primaryAccount == 0x0000000000000000000000000000000000000000) revert UserExists();
+    /// @notice Registers a new user
+    /// @param _user The encoded user data to register
+    function registerUser(bytes memory _user) public onlyApp {
+        (address _wallet, uint256 _farcasterId, address _primaryAccount, string memory _name, string memory _email) =
+            abi.decode(_user, (address, uint256, address, string, string));
 
-        UserAccount storage newUser = registeredUsers[_privy];
+        if (registeredUsers[_wallet].primaryAccount != 0x0000000000000000000000000000000000000000) revert UserExists();
+
+        UserAccount storage newUser = registeredUsers[_wallet];
 
         newUser.primaryAccount = _primaryAccount;
-        newUser.privy = _privy;
+        newUser.wallet = _wallet;
         newUser.farcasterId = _farcasterId;
         newUser.name = _name;
         newUser.email = _email;
         newUser.creationDate = block.timestamp;
 
-        emit UserRegistered(_privy, block.timestamp);
+        emit UserRegistered(_wallet, block.timestamp);
     }
 
-    function registerDevice(address _privy, UserDevice memory _device) public onlyApp {
-        if (registeredUsers[_privy].primaryAccount != 0x0000000000000000000000000000000000000000) {
+    /// @notice Registers a new device
+    /// @param _wallet The address of the wallet
+    /// @param _device The device to register
+    function registerDevice(address _wallet, bytes memory _device) public onlyApp {
+        (UserDevice memory device) = abi.decode(_device, (UserDevice));
+
+        if (registeredUsers[_wallet].primaryAccount == 0x0000000000000000000000000000000000000000) {
             revert UserNotRegistered();
         }
 
-        registeredUsers[_privy].deviceIds.push(_device.deviceId);
-        registeredUsers[_privy].userDevices[_device.deviceId] = _device;
+        userDevices[_wallet][device.deviceId] = device;
 
-        emit DeviceRegistered(_device.user, _device.deviceId, block.timestamp);
+        emit DeviceRegistered(device.user, device.deviceId, block.timestamp);
     }
 
-    function registerPhoto(address _privy, uint256 _deviceId, PhotoProvenance memory _photo) public {
-        if (registeredUsers[_privy].userDevices[_deviceId].user != 0x0000000000000000000000000000000000000000) {
+    /// @notice Registers a new photo
+    /// @param _wallet The address of the wallet
+    /// @param _deviceId The device ID of the device
+    /// @param _photo The photo to register
+    function registerPhoto(address _wallet, uint256 _deviceId, bytes memory _photo) public {
+        (PhotoProvenance memory photo) = abi.decode(_photo, (PhotoProvenance));
+
+        if (userDevices[_wallet][_deviceId].user == 0x0000000000000000000000000000000000000000) {
             revert DeviceNotRegistered();
         }
 
-        registeredUsers[_privy].photoHashes.push(_photo.photoHash);
-        registeredUsers[_privy].photos[_photo.photoHash] = _photo;
+        // registeredUsers[_wallet].photos.push(photo);
+        userPhotos[_wallet][photo.photoHash] = photo;
 
-        emit PhotoRegistered(_photo.photoHash, _photo.location, _photo.timestamp);
+        emit PhotoRegistered(photo.photoHash, photo.location, photo.timestamp);
     }
 
-    function confirmPhotoPhrase(address _privy, UserDevice memory _device, PhotoProvenance memory _algoProvenance)
-        public
-        onlyApp
-    {
-        if (registeredUsers[_privy].photos[_algoProvenance.photoHash].photoHash != _algoProvenance.photoHash) {
+    function confirmPhotoPhrase(address _wallet, bytes memory _device, bytes memory _algoProvenance) public onlyApp {
+        (UserDevice memory device) = abi.decode(_device, (UserDevice));
+        (PhotoProvenance memory algoProvenance) = abi.decode(_algoProvenance, (PhotoProvenance));
+
+        if (userPhotos[_wallet][algoProvenance.photoHash].photoHash != algoProvenance.photoHash) {
             revert PhotoNotFound();
         }
-        string storage storedSeedPhrase = registeredUsers[_privy].photos[_algoProvenance.photoHash].seedPhrase;
-        if (keccak256(abi.encodePacked(storedSeedPhrase)) == keccak256(abi.encodePacked(_algoProvenance.seedPhrase))) {
+        string storage storedSeedPhrase = userPhotos[_wallet][algoProvenance.photoHash].seedPhrase;
+        if (keccak256(abi.encodePacked(storedSeedPhrase)) == keccak256(abi.encodePacked(algoProvenance.seedPhrase))) {
             revert SeedMismatch();
         }
 
-        registeredUsers[_privy].photos[_algoProvenance.photoHash].algoConfirmed = true;
+        userPhotos[_wallet][algoProvenance.photoHash].algoConfirmed = true;
 
         emit PhotoProvenanceConfirmed(
-            _privy,
-            _algoProvenance.photoHash,
-            _algoProvenance.location,
-            _algoProvenance.timestamp,
-            _algoProvenance.seedPhrase,
-            _algoProvenance.seedAlgorithm,
+            _wallet,
+            algoProvenance.photoHash,
+            algoProvenance.location,
+            algoProvenance.timestamp,
+            algoProvenance.seedPhrase,
+            algoProvenance.seedAlgorithm,
             msg.sender,
             true
         );
     }
 
-    function verifyPhotoProvenance(address _privy, bytes32 _photoHash) public returns (bool) {
-        if (registeredUsers[_privy].photos[_photoHash].photoHash == _photoHash) {
+    function verifyPhotoProvenance(address _wallet, bytes32 _photoHash) public returns (bool) {
+        if (userPhotos[_wallet][_photoHash].photoHash == _photoHash) {
             // photo exists
-            if (registeredUsers[_privy].photos[_photoHash].algoConfirmed) {
+            if (userPhotos[_wallet][_photoHash].algoConfirmed) {
                 // algo confirmed
                 emit PhotoVerified(_photoHash, msg.sender);
 
@@ -198,5 +202,13 @@ contract SiPPPProvenance is AccessControl {
         }
 
         return false;
+    }
+
+    function getUserAccount(address _wallet) public view returns (UserAccount memory) {
+        return registeredUsers[_wallet];
+    }
+
+    function getUserDevice(address _wallet, uint256 _deviceId) public view returns (UserDevice memory) {
+        return userDevices[_wallet][_deviceId];
     }
 }
