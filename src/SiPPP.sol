@@ -186,6 +186,7 @@ contract SiPPP is AccessControl, RecoverMessage {
   mapping( address => bool ) private userSippped;
 
   address payable private TREASURY;
+  uint256 private REV_SHARE_PCNT = 90;
 
   /// @notice Only ADMIN modifer to restrict access to certain functions
   modifier onlyAdmin() {
@@ -252,6 +253,10 @@ contract SiPPP is AccessControl, RecoverMessage {
     emit TreasuryUpdated(_treasury);
   }
 
+  function updateRevShareCut(uint256 _revSharePcnt) public onlyAdmin {
+    REV_SHARE_PCNT = _revSharePcnt;
+  }
+
   /// @notice Registers a new photo
   /// @param npm_wallet The payable address of the npm user
   /// @param _sipppTxn The photo to register
@@ -266,7 +271,7 @@ contract SiPPP is AccessControl, RecoverMessage {
       require(success, "Transfer failed");
     }
     else {
-      uint256 _sippp_cut = msg.value * 9 / 10;
+      uint256 _sippp_cut = msg.value * REV_SHARE_PCNT / 100;
       uint256 _3rd_party_cut = msg.value - _sippp_cut;
       (bool success1, ) = TREASURY.call{value: _sippp_cut}("");
       require(success1, "Transfer failed");
