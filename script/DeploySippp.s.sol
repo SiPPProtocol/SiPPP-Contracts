@@ -7,9 +7,9 @@ import {console} from "forge-std/console.sol";
 import {SiPPP} from "../src/SiPPP.sol";
 
 contract DeploySippp is Script {
-    address public admin = 0x2C80552A6f2FD1b32d7783E4c5086899da3933b8;
-    address payable public treasury = payable(0x2C80552A6f2FD1b32d7783E4c5086899da3933b8);
-    address public publicAddress = 0x2C80552A6f2FD1b32d7783E4c5086899da3933b8;
+    address public admin = 0x796A25e6f79043Add7F63735F80472129e77B009;
+    address payable public treasury = payable(0x796A25e6f79043Add7F63735F80472129e77B009);
+    address public publicAddress = 0x796A25e6f79043Add7F63735F80472129e77B009;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");

@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-// Open Zeppelin
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {RecoverMessage} from "./RecoverMessage.sol";
 
@@ -13,6 +11,7 @@ contract SiPPP is AccessControl, RecoverMessage {
     error OnlyApp();
     error OnlyAdmin();
     error PhotoNotFound();
+    error ZeroAddress();
 
     event PhotoRegistered(string photoHash, uint256 timestamp);
     event PhotoVerified(string _photoHash, address requester);
@@ -29,34 +28,35 @@ contract SiPPP is AccessControl, RecoverMessage {
         string photoIpfsHash;
     }
 
-    uint256 private REV_SHARE_PCNT = 90;
+    uint256 private s_revenueSharePercentage = 90;
 
     bytes32 public constant APP_ROLE = keccak256("APP_ROLE");
     bytes32 public constant APP_BANNED = keccak256("APP_BANNED");
 
     address private s_appAddress;
-    address private immutable s_admin;
-    address payable private TREASURY;
+    address private immutable i_admin;
+    address payable private s_treasury;
+    address[] private s_userAddresses;
 
     string[] private s_photoIds;
-
-    address[] private s_userAddresses;
 
     mapping(address => TransactionData[]) public s_userPhotos;
     mapping(string => bool) private s_photoSippped;
     mapping(address => bool) private s_userSippped;
 
-    /// @notice Only s_admin modifer to restrict access to certain functions
+    /// @notice Only i_admin modifer to restrict access to certain functions
     modifier onlyAdmin() {
         if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert OnlyAdmin();
         _;
     }
 
+    /// @notice Only the s_appAddress is allowed
     modifier onlyApp(string calldata message, bytes calldata rawSig) {
         if (!verifyApp(message, rawSig)) revert OnlyApp(); // this is where the public key verification should be
         _;
     }
 
+    /// @notice Must have Ether value
     modifier positiveMsgValue() {
         if (msg.value <= 0) revert("Please pay with Ether.");
         _;
@@ -66,10 +66,10 @@ contract SiPPP is AccessControl, RecoverMessage {
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(APP_ROLE, _publicAddy);
 
-        TREASURY = _treasury;
+        s_treasury = _treasury;
 
         s_appAddress = _publicAddy;
-        s_admin = _admin;
+        i_admin = _admin;
     }
 
     /// @notice Verifies the app address
@@ -88,6 +88,8 @@ contract SiPPP is AccessControl, RecoverMessage {
     /// @notice Updates the app address
     /// @param _publicAddy The new app address
     function updatePubAddy(address _publicAddy) public onlyAdmin {
+        if (_publicAddy == address(0)) revert ZeroAddress();
+
         s_appAddress = _publicAddy;
 
         emit PublicAddy(_publicAddy);
@@ -96,7 +98,9 @@ contract SiPPP is AccessControl, RecoverMessage {
     /// @notice Updates the treasury address
     /// @param _treasury The new treasury address
     function updateTreasury(address payable _treasury) public onlyAdmin {
-        TREASURY = _treasury;
+        if (_treasury == address(0)) revert ZeroAddress();
+
+        s_treasury = _treasury;
 
         emit TreasuryUpdated(_treasury);
     }
@@ -104,7 +108,7 @@ contract SiPPP is AccessControl, RecoverMessage {
     /// @notice Updates the revenue share percentage
     /// @param _revSharePcnt The new revenue share percentage
     function updateRevShareCut(uint256 _revSharePcnt) public onlyAdmin {
-        REV_SHARE_PCNT = _revSharePcnt;
+        s_revenueSharePercentage = _revSharePcnt;
     }
 
     /// @notice Registers a new photo
@@ -119,13 +123,13 @@ contract SiPPP is AccessControl, RecoverMessage {
         // (TransactionData memory transaction) = abi.decode(_sipppTxn, (TransactionData));
 
         if (_npm_wallet == address(0)) {
-            (bool success,) = TREASURY.call{value: msg.value}("");
+            (bool success,) = s_treasury.call{value: msg.value}("");
             require(success, "Transfer failed");
         } else {
-            uint256 _sippp_cut = msg.value * REV_SHARE_PCNT / 100;
+            uint256 _sippp_cut = msg.value * s_revenueSharePercentage / 100;
             uint256 _3rd_party_cut = msg.value - _sippp_cut;
 
-            (bool success1,) = TREASURY.call{value: _sippp_cut}("");
+            (bool success1,) = s_treasury.call{value: _sippp_cut}("");
             require(success1, "Transfer failed");
 
             (bool success2,) = _npm_wallet.call{value: _3rd_party_cut}("");
@@ -154,5 +158,17 @@ contract SiPPP is AccessControl, RecoverMessage {
             return true;
         }
         return false;
+    }
+
+    function appAddress() public view returns (address) {
+        return s_appAddress;
+    }
+
+    function admin() public view returns (address) {
+        return i_admin;
+    }
+
+    function treasury() public view returns (address payable) {
+        return s_treasury;
     }
 }
