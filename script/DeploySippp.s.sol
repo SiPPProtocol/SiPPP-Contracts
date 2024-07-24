@@ -24,4 +24,4 @@ contract DeploySippp is Script {
     }
 }
 
-// forge script script/DeploySippp.s.sol:DeploySippp --rpc-url $RPC_URL --broadcast --etherscan-api-key $ETHERSCAN_API_KEY --verify
+// forge script script/DeploySippp.s.sol:DeploySippp -vvvv --rpc-url $RPC_URL --broadcast --verify
