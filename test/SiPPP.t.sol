@@ -33,13 +33,15 @@ contract SiPPPTest is Test {
     // bytes encodedUserDevice = abi.encode(device);
 
     function setUp() public {
-        vm.prank(admin);
+        vm.startPrank(admin);
         sippp = new SiPPP(admin, app, payable(treasury));
+        sippp.updatePubAddy(app);
 
         name = "Test User";
         email = "test@example.com";
 
         encodedUserData = abi.encode(userWallet, farcasterId, primaryAccount, name, email);
+        vm.stopPrank();
     }
 
     function test_deploySippp() public view {

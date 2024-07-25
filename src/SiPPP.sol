@@ -13,14 +13,14 @@ contract SiPPP is AccessControl, RecoverMessage {
     error PhotoNotFound();
     error ZeroAddress();
 
-    event PhotoRegistered(string photoHash, uint256 timestamp);
+    event PhotoRegistered(string photoHash, string timestamp);
     event PhotoVerified(string _photoHash, address requester);
     event Verified(bool verified);
     event PublicAddy(address publicAddy);
     event TreasuryUpdated(address _treasury);
 
     struct TransactionData {
-        uint256 timestamp;
+        string timestamp;
         uint256 pinTime;
         uint256 pinSize;
         bytes rawSig;
