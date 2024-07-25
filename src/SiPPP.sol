@@ -21,7 +21,7 @@ contract SiPPP is AccessControl, RecoverMessage {
 
     struct TransactionData {
         string timestamp;
-        uint256 pinTime;
+        string pinTime;
         uint256 pinSize;
         bytes rawSig;
         // bytes photoHex;
