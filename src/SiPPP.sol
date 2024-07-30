@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
+    // constructor
+    // receive
+    // fallback
+    // external
+    // public
+    // internal
+    // private
+    // view / pure
+
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 import {RecoverMessage} from "./RecoverMessage.sol";
@@ -72,12 +81,19 @@ contract SiPPP is AccessControl, RecoverMessage {
         i_admin = _admin;
     }
 
+    receive() external payable {}
+
+    fallback() external payable {}
+
+    /// Public Functions
+
     /// @notice Verifies the app address
     /// @param message The message to verify
     /// @param rawSig The signature to verify
     /// @return bool Whether the signature is valid
     function verifyApp(string calldata message, bytes calldata rawSig) public returns (bool) {
         bool verified = s_appAddress == recoverStringFromRaw(message, rawSig);
+
         if (verified) {
             emit Verified(verified);
         }
@@ -114,13 +130,13 @@ contract SiPPP is AccessControl, RecoverMessage {
     /// @notice Registers a new photo
     /// @param _npm_wallet The address of the wallet
     /// @param _sipppTxn The photo to register
-    function registerPhoto(address payable _npm_wallet, TransactionData calldata _sipppTxn)
+    function registerPhoto(address payable _npm_wallet, bytes calldata _sipppTxn)
         public
         payable
-        onlyApp(_sipppTxn.photoIpfsHash, _sipppTxn.rawSig)
+        // onlyApp(_sipppTxn.photoIpfsHash, _sipppTxn.rawSig)
         positiveMsgValue
     {
-        // (TransactionData memory transaction) = abi.decode(_sipppTxn, (TransactionData));
+        TransactionData memory transaction = abi.decode(_sipppTxn, (TransactionData));
 
         if (_npm_wallet == address(0)) {
             (bool success,) = s_treasury.call{value: msg.value}("");
@@ -136,13 +152,13 @@ contract SiPPP is AccessControl, RecoverMessage {
             require(success2, "Transfer failed");
         }
 
-        s_photoIds.push(_sipppTxn.photoIpfsHash);
+        s_photoIds.push(transaction.photoIpfsHash);
         s_userAddresses.push(msg.sender);
-        s_userPhotos[msg.sender].push(_sipppTxn);
-        s_photoSippped[_sipppTxn.photoIpfsHash] = true;
+        s_userPhotos[msg.sender].push(transaction);
+        s_photoSippped[transaction.photoIpfsHash] = true;
         s_userSippped[msg.sender] = true;
 
-        emit PhotoRegistered(_sipppTxn.photoIpfsHash, _sipppTxn.timestamp);
+        emit PhotoRegistered(transaction.photoIpfsHash, transaction.timestamp);
     }
 
     /// @notice Verifies the photo provenance
@@ -160,15 +176,29 @@ contract SiPPP is AccessControl, RecoverMessage {
         return false;
     }
 
+    /// View Functions
+
+    /// @notice Returns the app address
+    /// @return address The app address
     function appAddress() public view returns (address) {
         return s_appAddress;
     }
 
+    /// @notice Returns the admin address
+    /// @return address The admin address
     function admin() public view returns (address) {
         return i_admin;
     }
 
+    /// @notice Returns the treasury address
+    /// @return address payable The treasury address
     function treasury() public view returns (address payable) {
         return s_treasury;
+    }
+
+    /// @notice Returns the revenue share percentage
+    /// @return uint256 The revenue share percentage
+    function revenueSharePercentage() public view returns (uint256) {
+        return s_revenueSharePercentage;
     }
 }
