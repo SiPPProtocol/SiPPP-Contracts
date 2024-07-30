@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-    // constructor
-    // receive
-    // fallback
-    // external
-    // public
-    // internal
-    // private
-    // view / pure
+// constructor
+// receive
+// fallback
+// external
+// public
+// internal
+// private
+// view / pure
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
@@ -27,12 +27,14 @@ contract SiPPP is AccessControl, RecoverMessage {
     event Verified(bool verified);
     event PublicAddy(address publicAddy);
     event TreasuryUpdated(address _treasury);
+    event RevShareUpdated(uint256 _revSharePcnt);
+    event AppVerified(bool verified);
 
     struct TransactionData {
         string timestamp;
         string pinTime;
         uint256 pinSize;
-        bytes rawSig;
+        bytes32 rawSig;
         // bytes photoHex;
         string photoIpfsHash;
     }
@@ -45,9 +47,9 @@ contract SiPPP is AccessControl, RecoverMessage {
     address private s_appAddress;
     address private immutable i_admin;
     address payable private s_treasury;
-    address[] private s_userAddresses;
 
-    string[] private s_photoIds;
+    // address[] private s_userAddresses;
+    // string[] private s_photoIds;
 
     mapping(address => TransactionData[]) public s_userPhotos;
     mapping(string => bool) private s_photoSippped;
@@ -61,7 +63,7 @@ contract SiPPP is AccessControl, RecoverMessage {
 
     /// @notice Only the s_appAddress is allowed
     modifier onlyApp(string calldata message, bytes calldata rawSig) {
-        if (!verifyApp(message, rawSig)) revert OnlyApp(); // this is where the public key verification should be
+        if (!isAppVerified(message, rawSig)) revert OnlyApp(); // this is where the public key verification should be
         _;
     }
 
@@ -91,12 +93,8 @@ contract SiPPP is AccessControl, RecoverMessage {
     /// @param message The message to verify
     /// @param rawSig The signature to verify
     /// @return bool Whether the signature is valid
-    function verifyApp(string calldata message, bytes calldata rawSig) public returns (bool) {
+    function isAppVerified(string calldata message, bytes calldata rawSig) public view returns (bool) {
         bool verified = s_appAddress == recoverStringFromRaw(message, rawSig);
-
-        if (verified) {
-            emit Verified(verified);
-        }
 
         return verified;
     }
@@ -125,20 +123,18 @@ contract SiPPP is AccessControl, RecoverMessage {
     /// @param _revSharePcnt The new revenue share percentage
     function updateRevShareCut(uint256 _revSharePcnt) public onlyAdmin {
         s_revenueSharePercentage = _revSharePcnt;
+
+        emit RevShareUpdated(_revSharePcnt);
     }
 
     /// @notice Registers a new photo
-    /// @param _npm_wallet The address of the wallet
+    /// @param _revShareWallet The address of the wallet
     /// @param _sipppTxn The photo to register
-    function registerPhoto(address payable _npm_wallet, bytes calldata _sipppTxn)
-        public
-        payable
-        // onlyApp(_sipppTxn.photoIpfsHash, _sipppTxn.rawSig)
-        positiveMsgValue
-    {
-        TransactionData memory transaction = abi.decode(_sipppTxn, (TransactionData));
+    function registerPhoto(address payable _revShareWallet, bytes memory _sipppTxn) public payable positiveMsgValue {
+        (string memory timestamp, string memory pinTime, uint256 pinSize, bytes32 rawSig, string memory photoIpfsHash) =
+            abi.decode(_sipppTxn, (string, string, uint256, bytes32, string));
 
-        if (_npm_wallet == address(0)) {
+        if (_revShareWallet == address(0)) {
             (bool success,) = s_treasury.call{value: msg.value}("");
             require(success, "Transfer failed");
         } else {
@@ -148,17 +144,27 @@ contract SiPPP is AccessControl, RecoverMessage {
             (bool success1,) = s_treasury.call{value: _sippp_cut}("");
             require(success1, "Transfer failed");
 
-            (bool success2,) = _npm_wallet.call{value: _3rd_party_cut}("");
+            (bool success2,) = _revShareWallet.call{value: _3rd_party_cut}("");
             require(success2, "Transfer failed");
         }
 
-        s_photoIds.push(transaction.photoIpfsHash);
-        s_userAddresses.push(msg.sender);
-        s_userPhotos[msg.sender].push(transaction);
-        s_photoSippped[transaction.photoIpfsHash] = true;
-        s_userSippped[msg.sender] = true;
+        // s_photoIds.push(photoIpfsHash);
+        // s_userAddresses.push(msg.sender);
+        s_userPhotos[msg.sender].push(
+            TransactionData({
+                timestamp: timestamp,
+                pinTime: pinTime,
+                pinSize: pinSize,
+                rawSig: rawSig,
+                photoIpfsHash: photoIpfsHash
+            })
+        );
+        s_photoSippped[photoIpfsHash] = true;
 
-        emit PhotoRegistered(transaction.photoIpfsHash, transaction.timestamp);
+        // todo: what if the user is already sippped? and has many photos?
+        // s_userSippped[msg.sender] = true;
+
+        emit PhotoRegistered(photoIpfsHash, timestamp);
     }
 
     /// @notice Verifies the photo provenance
@@ -174,6 +180,12 @@ contract SiPPP is AccessControl, RecoverMessage {
             return true;
         }
         return false;
+    }
+
+    /// @notice Withdraws the contract balance
+    function withdraw() public onlyAdmin {
+        (bool success,) = s_treasury.call{value: address(this).balance}("");
+        require(success, "Transfer failed");
     }
 
     /// View Functions

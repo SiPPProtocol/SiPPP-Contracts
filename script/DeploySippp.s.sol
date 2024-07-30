@@ -9,7 +9,7 @@ import {SiPPP} from "../src/SiPPP.sol";
 contract DeploySippp is Script {
     address public admin = 0x796A25e6f79043Add7F63735F80472129e77B009;
     address payable public treasury = payable(0x796A25e6f79043Add7F63735F80472129e77B009);
-    address public publicAddress = 0x796A25e6f79043Add7F63735F80472129e77B009;
+    address public publicAddress = 0x2fdb349f72260558F2667a3007fe0685d8906823;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");

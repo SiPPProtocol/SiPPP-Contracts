@@ -65,7 +65,7 @@ contract SiPPPTest is Test {
             abi.encode(app)
         );
 
-        bool result = sippp.verifyApp(message, rawSig);
+        bool result = sippp.isAppVerified(message, rawSig);
 
         assertTrue(result, "The app address should be verified");
     }
