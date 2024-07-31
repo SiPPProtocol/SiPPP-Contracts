@@ -1,20 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-// constructor
-// receive
-// fallback
-// external
-// public
-// internal
-// private
-// view / pure
-
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 import {RecoverMessage} from "./RecoverMessage.sol";
 
 /// @title SiPPP
+/// @author @codenamejason <jason@pharo.tech> @SeanMGonzalez <sean@pharo.tech>
 /// @notice A contract for registering and verifying photos
 contract SiPPP is AccessControl, RecoverMessage {
     error OnlyApp();
@@ -47,9 +39,6 @@ contract SiPPP is AccessControl, RecoverMessage {
     address private s_appAddress;
     address private immutable i_admin;
     address payable private s_treasury;
-
-    // address[] private s_userAddresses;
-    // string[] private s_photoIds;
 
     mapping(address => TransactionData[]) public s_userPhotos;
     mapping(string => bool) private s_photoSippped;

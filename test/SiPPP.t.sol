@@ -66,7 +66,6 @@ contract SiPPPTest is Test {
         );
 
         bool result = sippp.isAppVerified(message, rawSig);
-
         assertTrue(result, "The app address should be verified");
     }
 
