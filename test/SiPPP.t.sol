@@ -3,6 +3,7 @@ pragma solidity ^0.8.21;
 
 import {Test, console} from "forge-std/Test.sol";
 import {SiPPP} from "../src/SiPPP.sol";
+import {RecoverMessage} from "../src/RecoverMessage.sol";
 
 contract SiPPPTest is Test {
     SiPPP public sippp;
@@ -12,6 +13,7 @@ contract SiPPPTest is Test {
     address private newApp = vm.addr(uint256(keccak256("NEW_APP")));
     address private badApp = vm.addr(uint256(keccak256("BAD_APP")));
     address private userWallet = vm.addr(uint256(keccak256("USER_WALLET")));
+    address private treasury = vm.addr(uint256(keccak256("TREASURY")));
 
     uint256 farcasterId = 12345;
     address primaryAccount = vm.addr(uint256(keccak256("PRIMARY_ACCOUNT")));
@@ -30,25 +32,60 @@ contract SiPPPTest is Test {
 
     // bytes encodedUserDevice = abi.encode(device);
 
-    //     function setUp() public {
-    //         vm.prank(admin);
-    //         sippp = new SiPPPP(admin, app);
-    //         vm.prank(admin);
-    //         sippp.grantAppRole(app);
+    function setUp() public {
+        vm.startPrank(admin);
+        sippp = new SiPPP(admin, app, payable(treasury));
+        sippp.updatePubAddy(app);
 
-    //         name = "Test User";
-    //         email = "test@example.com";
+        name = "Test User";
+        email = "test@example.com";
 
-    //         encodedUserData = abi.encode(userWallet, farcasterId, primaryAccount, name, email);
-    //     }
+        encodedUserData = abi.encode(userWallet, farcasterId, primaryAccount, name, email);
+        vm.stopPrank();
+    }
 
-    //     function test_grantAppRole() public {
-    //         vm.prank(admin);
-    //         sippp.grantAppRole(newApp);
+    function test_deploySippp() public view {
+        assertEq(sippp.admin(), admin, "Admin should match");
+        assertNotEq(sippp.appAddress(), address(0), "Public address should not be zero address");
+        assertEq(sippp.treasury(), payable(treasury), "Treasury should match");
+    }
 
-    //         bool hasRole = sippp.hasRole(sippp.APP_ROLE(), newApp);
-    //         assertTrue(hasRole, "New app should have APP_ROLE");
-    //     }
+    function testVerifyApp() public {
+        string memory message = "Test message";
+        bytes32 messageHash = keccak256(abi.encodePacked(message));
+
+        // Mock the signature using the private key of the publicAddy
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(uint160(app)), messageHash);
+        bytes memory rawSig = abi.encodePacked(r, s, v);
+
+        // Mock the recoverStringFromRaw function to return the publicAddy
+        vm.mockCall(
+            address(sippp),
+            abi.encodeWithSelector(RecoverMessage.recoverStringFromRaw.selector, message, rawSig),
+            abi.encode(app)
+        );
+
+        bool result = sippp.isAppVerified(message, rawSig);
+        assertTrue(result, "The app address should be verified");
+    }
+
+    function test_updatePublicAppAddress() public {
+        vm.prank(admin);
+        sippp.updatePubAddy(app);
+
+        assertEq(sippp.appAddress(), app, "Public address should match");
+    }
+
+    function test_revert_updatePublicAppAddress_NotAdmin() public {
+        vm.expectRevert(SiPPP.OnlyAdmin.selector);
+        sippp.updatePubAddy(app);
+    }
+
+    function test_revert_updatePublicAppAddress_ZeroAddress() public {
+        vm.prank(admin);
+        vm.expectRevert(SiPPP.ZeroAddress.selector);
+        sippp.updatePubAddy(address(0));
+    }
 
     //     function test_revokeAppRole() public {
     //         vm.prank(admin);

@@ -1,4 +1,7 @@
-/out
+/out/*
+/broadcast/*
+/cache/*
+
 .gas-snapshot
 
 .env
